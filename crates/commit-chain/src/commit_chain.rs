@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
-pub use tendermint_light_client_verifier::{
-    ProdVerifier, Verdict, Verifier,
-    options::Options,
-    types::{LightBlock, ValidatorSet},
-};
+// pub use tendermint_light_client_verifier::{
+//     ProdVerifier, Verdict, Verifier,
+//     options::Options,
+//     types::{LightBlock, ValidatorSet},
+// };
 
 use bitcoin::{Transaction, TxOut, Witness, secp256k1::PublicKey};
 

@@ -11,7 +11,7 @@ use crate::goat_chain::goat_adaptor::IStakeManagement::IStakeManagementInstance;
 use alloy::eips::BlockNumberOrTag;
 use alloy::providers::Identity;
 use alloy::providers::fillers::{FillProvider, JoinFill, RecommendedFillers};
-use alloy::rpc::types::TransactionReceipt;
+use alloy::rpc::types::{Block, TransactionReceipt};
 use alloy::signers::Signature;
 use alloy::{
     network::{Ethereum, EthereumWallet, NetworkWallet, eip2718::Encodable2718},
@@ -628,6 +628,10 @@ impl ChainAdaptor for GoatAdaptor {
 
     async fn get_tx_receipt(&self, tx_hash: &str) -> anyhow::Result<Option<TransactionReceipt>> {
         Ok(self.provider.get_transaction_receipt(TxHash::from_str(tx_hash)?).await?)
+    }
+
+    async fn get_Block(&self, block_number: u64) -> anyhow::Result<Option<Block>> {
+        Ok(self.provider.get_block_by_number(BlockNumberOrTag::from(block_number)).await?)
     }
 
     async fn gateway_get_min_challenge_amount_sats(&self) -> anyhow::Result<u64> {

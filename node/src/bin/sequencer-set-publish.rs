@@ -46,6 +46,8 @@ use hex::FromHex;
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::str::FromStr;
+use alloy::network::BlockResponse;
+use alloy::rpc::types::Block;
 
 pub fn decode_eth_address_object(addr: &str) -> Result<EvmAddress, String> {
     let addr = addr.trim();
@@ -214,8 +216,11 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    //let dummy_publisher_keys: Vec<_> = create_dummy_publisher_keys(5);
-    //println!("dummy keys: {:?}", dummy_publisher_keys);
+    // let dummy_publisher_keys: Vec<_> = create_dummy_publisher_keys(5);
+    // println!("dummy keys: {:?}", dummy_publisher_keys);
+    let gen_private_key = PrivateKey::generate(Network::Regtest);
+    println!("gen_private_key: {}", gen_private_key.to_string());
+
     dotenv().ok();
     let _ = tracing_subscriber::fmt().with_env_filter(EnvFilter::from_default_env()).try_init();
     let args = Args::parse();
@@ -266,8 +271,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await
         }
         Commands::SignSeq { owner_btc_key_wif, goat_block_number, next_publishers, clean_sigs } => {
-            let (_, next_sequencer_set_hash, _) =
-                fetch_cosmos_validator_info(goat_block_number).await?;
+            // let (_, next_sequencer_set_hash, _) =
+            //     fetch_cosmos_validator_info(goat_block_number).await?;
+
+            let goatBlock = goat_client.get_Block(goat_block_number+1).await?;
+            let next_sequencer_set_hash = Some(goatBlock.unwrap().hash().0);
 
             let (fee_txid, fee_tx_vout) =
                 (cached_output.fee_txid.clone(), cached_output.fee_tx_vout.unwrap());
@@ -295,8 +303,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await
         }
         Commands::PushSeq { owner_btc_key_wif, goat_block_number, next_publishers } => {
-            let (_, next_sequencer_set_hash, _) =
-                fetch_cosmos_validator_info(goat_block_number).await?;
+            // let (_, next_sequencer_set_hash, _) =
+            //     fetch_cosmos_validator_info(goat_block_number).await?;
+
+            let goatBlock = goat_client.get_Block(goat_block_number+1).await?;
+            let next_sequencer_set_hash = Some(goatBlock.unwrap().hash().0);
+
             let (fee_txid, fee_tx_vout) =
                 (cached_output.fee_txid.clone(), cached_output.fee_tx_vout.unwrap());
             let (update_connector_txid, update_connector_vout) =
@@ -321,8 +333,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::UpdateSeqSet { next_publishers, goat_block_number } => {
             // fetch validator set from cosmos
-            let (sequence_set_hash, next_sequencer_set_hash, _) =
-                fetch_cosmos_validator_info(goat_block_number).await?;
+            // let (sequence_set_hash, next_sequencer_set_hash, _) =
+            //     fetch_cosmos_validator_info(goat_block_number).await?;
+
+            let goatBlock = goat_client.get_Block(goat_block_number).await?;
+            let sequence_set_hash =  Some(goatBlock.unwrap().hash().0);
+
+            let nextGoatBlock = goat_client.get_Block(goat_block_number+1).await?;
+            let next_sequencer_set_hash = Some(nextGoatBlock.unwrap().hash().0);
 
             action_update_sequencer_set_on_goat(
                 &btc_client,
@@ -916,7 +934,7 @@ async fn fund_publishers(
     println!("Funding publishers from {from_address} with total UTXO value: {total_value}");
 
     let fee = Amount::from_sat(4000);
-    let to_value = 20000; // each publisher get 20000 sat 
+    let to_value = 20000; // each publisher get 20000 sat
 
     let mut txins = Vec::new();
     for utxo in &utxos {

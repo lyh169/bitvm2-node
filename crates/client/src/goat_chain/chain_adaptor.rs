@@ -1,8 +1,9 @@
+use alloy::eips::BlockHashOrNumber;
 use crate::btc_chain::MerkleProofExtend;
 use crate::goat_chain::goat_adaptor::{GoatAdaptor, GoatInitConfig};
 use crate::goat_chain::mock_goat_adaptor::MockAdaptor;
 use alloy::primitives::{Address, Bytes, FixedBytes, U256};
-use alloy::rpc::types::TransactionReceipt;
+use alloy::rpc::types::{TransactionReceipt, Block};
 use alloy::signers::Signature;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -14,6 +15,7 @@ pub trait ChainAdaptor: Send + Sync {
     fn get_default_signer_address(&self) -> Address;
     async fn get_finalized_block_number(&self) -> anyhow::Result<i64>;
     async fn get_latest_block_number(&self) -> anyhow::Result<i64>;
+    async fn get_Block(&self, block_number: u64) -> anyhow::Result<Option<Block>>;
     async fn get_tx_receipt(&self, tx_hash: &str) -> anyhow::Result<Option<TransactionReceipt>>;
 
     async fn gateway_get_min_challenge_amount_sats(&self) -> anyhow::Result<u64>;

@@ -5,7 +5,7 @@ use crate::goat_chain::chain_adaptor::{
 };
 use crate::goat_chain::mock_goat_adaptor::MockAdaptor;
 use alloy::primitives::{Address, Bytes, FixedBytes, U256};
-use alloy::rpc::types::TransactionReceipt;
+use alloy::rpc::types::{Block, TransactionReceipt};
 use alloy::signers::Signature;
 use bitcoin::Txid;
 use bitcoin::hashes::Hash;
@@ -242,6 +242,10 @@ impl EvmChain {
                 challenge_finish_proof,
             )
             .await
+    }
+
+    pub async fn get_Block(&self, block_number: u64) -> anyhow::Result<Option<Block>> {
+        self.adaptor.get_Block(block_number).await
     }
 
     pub async fn get_tx_receipt(

@@ -1,12 +1,13 @@
 use crate::goat_chain::chain_adaptor::*;
 use crate::utils::generate_random_bytes;
 use alloy::primitives::{Address, Bytes, FixedBytes, TxHash, U256};
-use alloy::rpc::types::TransactionReceipt;
+use alloy::rpc::types::{Block, TransactionReceipt};
 use alloy::signers::Signature;
 use anyhow::bail;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use alloy::eips::BlockNumberOrTag;
 use tracing::info;
 use uuid::Uuid;
 
@@ -74,6 +75,11 @@ impl ChainAdaptor for MockAdaptor {
             Ok(h) => Ok(*h),
             Err(_) => bail!("MockAdaptor::get_latest_block_number() failed"),
         }
+    }
+
+    async fn get_Block(&self, block_number: u64) -> anyhow::Result<Option<Block>> {
+        info!("call get_Block");
+        Ok(Some(Block::default()))
     }
 
     async fn get_tx_receipt(&self, tx_hash: &str) -> anyhow::Result<Option<TransactionReceipt>> {

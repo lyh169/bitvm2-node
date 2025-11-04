@@ -2,7 +2,7 @@
 const GATEWAY_RATE_MULTIPLIER: u64 = 10000;
 use alloy::consensus::crypto::secp256k1::recover_signer;
 use alloy::primitives::{Address, B256, Bytes, FixedBytes, Signature, U256};
-use alloy::rpc::types::TransactionReceipt;
+use alloy::rpc::types::{Block, TransactionReceipt};
 use anyhow::bail;
 use bitcoin::hashes::Hash;
 use bitcoin::{PublicKey, Transaction, Txid, XOnlyPublicKey};
@@ -65,6 +65,10 @@ impl GOATClient {
         self.chain_service.gateway_get_initialized_ids().await
     }
 
+    pub async fn get_Block(&self, block_number: u64) -> anyhow::Result<Option<Block>> {
+        self.chain_service.get_Block(block_number).await
+    }
+
     pub async fn get_tx_receipt(
         &self,
         tx_hash: &str,
@@ -82,6 +86,10 @@ impl GOATClient {
     }
 
     pub async fn get_latest_block_number(&self) -> anyhow::Result<i64> {
+        self.chain_service.get_latest_block_number().await
+    }
+
+    pub async fn get_header(&self, ) -> anyhow::Result<i64> {
         self.chain_service.get_latest_block_number().await
     }
 
