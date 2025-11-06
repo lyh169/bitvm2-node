@@ -32,7 +32,7 @@ use client::goat_chain::GoatInitConfig;
 use dotenv::dotenv;
 use tracing_subscriber::EnvFilter;
 
-use commit_chain_rpc::fetch_cosmos_validator_info;
+//use commit_chain_rpc::fetch_cosmos_validator_info;
 
 use bitcoin::secp256k1::{Message, Secp256k1};
 use bitcoin::sighash::{EcdsaSighashType, SighashCache};
@@ -48,6 +48,7 @@ use std::io::Read;
 use std::str::FromStr;
 use alloy::network::BlockResponse;
 use alloy::rpc::types::Block;
+use reqwest::Url;
 
 pub fn decode_eth_address_object(addr: &str) -> Result<EvmAddress, String> {
     let addr = addr.trim();
@@ -69,7 +70,7 @@ struct Args {
     #[arg(long, default_value = "http://127.0.0.1:3002")]
     esplora_url: String,
 
-    #[arg(long, default_value = "https://rpc.testnet3.goat.network")]
+    #[arg(long, default_value = "http://localhost:8545")]
     goat_rpc_url: String,
 
     #[arg(long, default_value_t = 2, env = "FEE_RATE")]
@@ -216,10 +217,14 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // let dummy_publisher_keys: Vec<_> = create_dummy_publisher_keys(5);
-    // println!("dummy keys: {:?}", dummy_publisher_keys);
-    let gen_private_key = PrivateKey::generate(Network::Regtest);
-    println!("gen_private_key: {}", gen_private_key.to_string());
+    //let dummy_publisher_keys: Vec<_> = create_dummy_publisher_keys(5);
+    //println!("dummy keys: {:?}", dummy_publisher_keys);
+
+    // let gen_private_key = PrivateKey::generate(Network::Regtest);
+    // println!("gen_private_key: {}", gen_private_key.to_string());
+    // let secp = Secp256k1::new();
+    // let mut pk = gen_private_key.public_key(&secp);
+    // println!("pk {}", pk.to_string());
 
     dotenv().ok();
     let _ = tracing_subscriber::fmt().with_env_filter(EnvFilter::from_default_env()).try_init();
@@ -276,6 +281,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let goatBlock = goat_client.get_Block(goat_block_number+1).await?;
             let next_sequencer_set_hash = Some(goatBlock.unwrap().hash().0);
+            println!("goat_block_number {}, sequence_set_hash {:?}", goat_block_number, hex::encode(next_sequencer_set_hash.unwrap()));
+
+            let secp = secp256k1::Secp256k1::new();
+            let owner_private_key = PrivateKey::from_wif(owner_btc_key_wif.as_ref().unwrap())?;
+            let mut pk = owner_private_key.public_key(&secp);
+            println!("owner_btc_key_wif {:?}, pk {}", owner_btc_key_wif, pk.to_string());
 
             let (fee_txid, fee_tx_vout) =
                 (cached_output.fee_txid.clone(), cached_output.fee_tx_vout.unwrap());
@@ -308,6 +319,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let goatBlock = goat_client.get_Block(goat_block_number+1).await?;
             let next_sequencer_set_hash = Some(goatBlock.unwrap().hash().0);
+            println!("goat_block_number {}, sequence_set_hash {:?}", goat_block_number, hex::encode(next_sequencer_set_hash.unwrap()));
 
             let (fee_txid, fee_tx_vout) =
                 (cached_output.fee_txid.clone(), cached_output.fee_tx_vout.unwrap());
@@ -338,9 +350,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let goatBlock = goat_client.get_Block(goat_block_number).await?;
             let sequence_set_hash =  Some(goatBlock.unwrap().hash().0);
+            println!("goat_block_number {}, sequence_set_hash {:?}", goat_block_number, hex::encode(sequence_set_hash.unwrap()));
 
             let nextGoatBlock = goat_client.get_Block(goat_block_number+1).await?;
             let next_sequencer_set_hash = Some(nextGoatBlock.unwrap().hash().0);
+            println!("goat_block_number {}, sequence_set_hash {:?}", goat_block_number+1, hex::encode(next_sequencer_set_hash.unwrap()));
 
             action_update_sequencer_set_on_goat(
                 &btc_client,
@@ -425,6 +439,7 @@ async fn push_sequencer_set_publish_tx(
             sig_hash_type,
         )
         .unwrap();
+        println!("update_connector_value sig is {:?}", sig);
         input_index += 1;
         // TODO: should sort the sigs by public key
         let mut sigs = vec![sig];
@@ -476,6 +491,7 @@ async fn fetch_publishers(
     let mut pubkeys = Vec::new();
     for address in addresses {
         let pubkey = goat_client.seq_set_pub_get_publisher_public_keys(*address).await?;
+        println!("fetch_publishers address {:?}, pubkey {:?}", address, hex::encode(&pubkey));
         let btc_pubkey = secp256k1::PublicKey::from_slice(pubkey.as_ref())?;
         pubkeys.push(btc_pubkey);
     }
@@ -492,6 +508,8 @@ fn init_clients(args: &Args) -> Result<(BTCClient, GOATClient), anyhow::Error> {
     config.multi_sig_verifier_address =
         get_goat_address_from_env(ENV_GOAT_SEQUENCER_SET_MULTI_SIG_VERIFIER_ADDRESS);
     config.private_key = args.goat_evm_prvkey.clone();
+    config.rpc_url = args.goat_rpc_url.parse::<Url>().expect("decode url");
+    config.chain_id = 1337;
 
     let goat_client = GOATClient::new(config, client::goat_chain::GoatNetwork::Test);
     Ok((btc_client, goat_client))
@@ -729,6 +747,8 @@ async fn action_sign_sequencer_set_update(
     let threshold = (2 * total).div_ceil(3);
     let total = next_btc_public_keys.len();
     let next_threshold = (2 * total).div_ceil(3);
+
+    println!("threshold: {threshold:?}, {next_threshold:?}");
 
     let relayer_fee = Amount::from_sat(500);
 

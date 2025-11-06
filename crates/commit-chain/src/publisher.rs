@@ -46,6 +46,7 @@ pub fn finalize(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut wtns = vec![vec![]];
     for sig in &sigs {
+        println!("{sig:?}");
         wtns.push(sig.clone());
     }
     wtns.push(redeem_script.to_bytes()); // the redeem script itself

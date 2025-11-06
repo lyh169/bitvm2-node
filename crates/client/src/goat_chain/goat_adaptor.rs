@@ -374,6 +374,14 @@ impl GoatAdaptor {
             Some(self.provider.clone().get_transaction_count(tx_request.from.unwrap()).await?);
         tx_request.gas = Some(self.provider.clone().estimate_gas(tx_request.clone()).await?);
 
+        // // let est_gas = self.provider.clone().estimate_gas(tx_request.clone()).await?;
+        // // println!("est_gas {}", est_gas);
+        // //tx_request.gas = Some(self.provider.clone().estimate_gas(tx_request.clone()).await?);
+        // tx_request.gas = Some(100000);
+        //
+        // println!("from addr {}", tx_request.from.unwrap());
+        // println!("self addr {:?}", self.signer);
+
         // change into unsigned tx
         let unsigned_tx =
             tx_request.build_typed_tx().map_err(|v| format_err!("{v:?} fail to build typed tx"))?;
