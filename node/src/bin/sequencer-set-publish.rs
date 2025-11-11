@@ -70,7 +70,7 @@ struct Args {
     #[arg(long, default_value = "http://127.0.0.1:3002")]
     esplora_url: String,
 
-    #[arg(long, default_value = "http://localhost:8545")]
+    #[arg(long, default_value = "http://localhost:8123")]
     goat_rpc_url: String,
 
     #[arg(long, default_value_t = 2, env = "FEE_RATE")]
@@ -318,6 +318,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             //     fetch_cosmos_validator_info(goat_block_number).await?;
 
             let goatBlock = goat_client.get_Block(goat_block_number+1).await?;
+            println!("goatBlock {:?}", goatBlock);
             let next_sequencer_set_hash = Some(goatBlock.unwrap().hash().0);
             println!("goat_block_number {}, sequence_set_hash {:?}", goat_block_number, hex::encode(next_sequencer_set_hash.unwrap()));
 
@@ -509,7 +510,8 @@ fn init_clients(args: &Args) -> Result<(BTCClient, GOATClient), anyhow::Error> {
         get_goat_address_from_env(ENV_GOAT_SEQUENCER_SET_MULTI_SIG_VERIFIER_ADDRESS);
     config.private_key = args.goat_evm_prvkey.clone();
     config.rpc_url = args.goat_rpc_url.parse::<Url>().expect("decode url");
-    config.chain_id = 1337;
+    //config.chain_id = 1337;
+    config.chain_id = 1001;
 
     let goat_client = GOATClient::new(config, client::goat_chain::GoatNetwork::Test);
     Ok((btc_client, goat_client))
