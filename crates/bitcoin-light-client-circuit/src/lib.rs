@@ -5,6 +5,8 @@ use alloy_primitives::B256;
 use guest_executor::executor::EthClientExecutor;
 pub use utils::*;
 mod rollup_chain;
+pub mod commit;
+
 pub use rollup_chain::*;
 
 use alloy_primitives::Address;
@@ -13,21 +15,22 @@ use alloy_primitives::utils::keccak256;
 use bitcoin::Block;
 use bitcoin::Transaction;
 use commit_chain::{
-    CommitChainCircuitInput, commit_chain_circuit, extract_data_from_commitment_outputs,
+    commit_chain_circuit, extract_data_from_commitment_outputs, CommitChainCircuitInput,
 };
 use header_chain::{
-    BitcoinMerkleTree, CircuitBlockHeader, CircuitTransaction, HeaderChainCircuitInput, MMRHost,
-    SPV, header_chain_circuit, verify_merkle_proof,
+    header_chain_circuit, verify_merkle_proof, BitcoinMerkleTree, CircuitBlockHeader, CircuitTransaction,
+    HeaderChainCircuitInput, MMRHost, SPV,
 };
 use zkm_verifier::Groth16Verifier;
 
-use bitcoin::{ScriptBuf, TxOut, Txid, hashes::Hash, secp256k1::PublicKey};
+use bitcoin::{hashes::Hash, secp256k1::PublicKey, ScriptBuf, TxOut, Txid};
 pub use guest_executor::io::EthClientExecutorInput;
 
 pub const GRAPH_ID_SIZE: usize = 16;
 pub const PROOF_SIZE: usize = 260;
 pub const PUBLIC_INPUTS_SIZE: usize = 64;
 pub const VK_HASH_SIZE: usize = 66;
+pub const SEQ_HASH_SIZE: usize = 32;
 
 // https://github.com/GOATNetwork/bitvm2-L2-contracts/blob/main/src/Gateway.sol#L192
 // Get base slot:  forge inspect src/GatewayDebug.sol:GatewayDebug storage-layout
@@ -364,6 +367,69 @@ pub fn parse_watchtower_commitment(
 
     Ok((
         graph_id,
+        proof,
+        zkm_public_values,
+        zkm_vk_hash.to_string(),
+        watchtower_total_work,
+        watchtower_consensus_block_height,
+    ))
+}
+
+pub fn build_watchtower_commitment_v1(
+    proof: &[u8; PROOF_SIZE],
+    public_inputs: &[u8; PUBLIC_INPUTS_SIZE],
+    vk_hash: &str,
+    total_work: u64,
+    consensus_block_height: u64,
+) -> Vec<u8> {
+    let mut comm = proof.to_vec();
+    comm.extend_from_slice(public_inputs);
+    comm.extend_from_slice(vk_hash.as_bytes());
+
+    comm.extend_from_slice(U256::from(total_work).as_le_slice());
+    comm.extend_from_slice(U256::from(consensus_block_height).as_le_slice());
+
+    comm
+}
+
+pub type WatchtowerCommitmentResultV1 =
+([u8; PROOF_SIZE], [u8; PUBLIC_INPUTS_SIZE], String, U256, U256);
+
+pub fn parse_watchtower_commitment_v1(
+    commitment: &[u8],
+) -> Result<WatchtowerCommitmentResultV1, String> {
+    let mut end = 0;
+    let mut proof = [0u8; PROOF_SIZE];
+    proof.copy_from_slice(&commitment[end..end + PROOF_SIZE]);
+    end += PROOF_SIZE;
+
+    let mut zkm_public_values = [0u8; PUBLIC_INPUTS_SIZE];
+    zkm_public_values.copy_from_slice(&commitment[end..end + PUBLIC_INPUTS_SIZE]);
+    end += PUBLIC_INPUTS_SIZE;
+
+    let mut zkm_vk_hash_bytes = [0u8; VK_HASH_SIZE];
+    zkm_vk_hash_bytes.copy_from_slice(&commitment[end..end + VK_HASH_SIZE]);
+    let zkm_vk_hash = String::from_utf8_lossy(&zkm_vk_hash_bytes[..]);
+
+    end += VK_HASH_SIZE;
+
+    // extract ChainState
+    let mut bh_bytes = [0u8; 32];
+    bh_bytes.copy_from_slice(&commitment[end..end + 32]);
+    let watchtower_total_work = U256::from_le_bytes(bh_bytes);
+    end += 32;
+
+    let mut bh_bytes = [0u8; 32];
+    bh_bytes.copy_from_slice(&commitment[end..end + 32]);
+    let watchtower_consensus_block_height = U256::from_le_bytes(bh_bytes);
+
+    let groth16_vk = *zkm_verifier::GROTH16_VK_BYTES;
+    let result = Groth16Verifier::verify(&proof, &zkm_public_values, &zkm_vk_hash, groth16_vk);
+    if result.is_err() {
+        return Err("Watchtower[{i}] invalid commitment: head chain Groth16 proof".into());
+    }
+
+    Ok((
         proof,
         zkm_public_values,
         zkm_vk_hash.to_string(),

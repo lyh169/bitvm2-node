@@ -48,6 +48,8 @@ use std::io::Read;
 use std::str::FromStr;
 use alloy::network::BlockResponse;
 use alloy::rpc::types::Block;
+use bitcoin::script::read_scriptbool;
+use futures::future::ok;
 use reqwest::Url;
 
 pub fn decode_eth_address_object(addr: &str) -> Result<EvmAddress, String> {
@@ -73,7 +75,7 @@ struct Args {
     #[arg(long, default_value = "http://localhost:8123")]
     goat_rpc_url: String,
 
-    #[arg(long, default_value_t = 2, env = "FEE_RATE")]
+    #[arg(long, default_value_t = 20, env = "FEE_RATE")]
     fee_rate: u64, // sat/vbyte
 
     #[arg(long, env = "GOAT_EVM_PRVKEY")]
@@ -285,8 +287,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let secp = secp256k1::Secp256k1::new();
             let owner_private_key = PrivateKey::from_wif(owner_btc_key_wif.as_ref().unwrap())?;
-            let mut pk = owner_private_key.public_key(&secp);
-            println!("owner_btc_key_wif {:?}, pk {}", owner_btc_key_wif, pk.to_string());
+            //let pk = owner_private_key.public_key(&secp);
+            //println!("owner_btc_key_wif {:?}, pk {}", owner_btc_key_wif, pk.to_string());
 
             let (fee_txid, fee_tx_vout) =
                 (cached_output.fee_txid.clone(), cached_output.fee_tx_vout.unwrap());
@@ -297,6 +299,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let output = OutputData::default();
                 save_output(output, output_file, true);
             }
+
+            let isHave = true;
+            let mut comm: Vec<u8> = vec![];
+            if isHave {
+                let (proof,  pub_inputs, vk_hash) = get_watchtower_proof().await.unwrap();
+                comm = bitcoin_light_client_circuit::build_watchtower_commitment_v1(
+                    &proof.try_into().unwrap(),
+                    &pub_inputs.try_into().unwrap(),
+                    vk_hash,
+                    0,
+                    goat_block_number,
+                );
+            }
+
             action_sign_sequencer_set_update(
                 &btc_client,
                 &goat_client,
@@ -309,6 +325,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 update_connector_txid,
                 update_connector_vout,
                 next_sequencer_set_hash.unwrap(),
+                &comm,
                 output_file,
             )
             .await
@@ -318,7 +335,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             //     fetch_cosmos_validator_info(goat_block_number).await?;
 
             let goatBlock = goat_client.get_Block(goat_block_number+1).await?;
-            println!("goatBlock {:?}", goatBlock);
+            //println!("goatBlock {:?}", goatBlock);
             let next_sequencer_set_hash = Some(goatBlock.unwrap().hash().0);
             println!("goat_block_number {}, sequence_set_hash {:?}", goat_block_number, hex::encode(next_sequencer_set_hash.unwrap()));
 
@@ -326,6 +343,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 (cached_output.fee_txid.clone(), cached_output.fee_tx_vout.unwrap());
             let (update_connector_txid, update_connector_vout) =
                 (cached_output.update_connector_txid.clone(), cached_output.update_connector_vout);
+
+            let isHave = true;
+            let mut comm: Vec<u8> = vec![];
+            if isHave {
+                let (proof,  pub_inputs, vk_hash) = get_watchtower_proof().await.unwrap();
+                comm = bitcoin_light_client_circuit::build_watchtower_commitment_v1(
+                    &proof.try_into().unwrap(),
+                    &pub_inputs.try_into().unwrap(),
+                    vk_hash,
+                    0,
+                    goat_block_number,
+                );
+            }
 
             action_push_sequencer_set_update(
                 &btc_client,
@@ -340,6 +370,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 update_connector_vout,
                 cached_output.sigs,
                 next_sequencer_set_hash.unwrap(),
+                &comm,
                 output_file,
             )
             .await
@@ -394,6 +425,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+// async fn get_watchtower_proof() -> Result<(&'static [u8], &'static [u8], &'static str), Box<dyn std::error::Error>> {
+//     // const PROOF: &[u8] =
+//     //     include_bytes!("../../../circuits/data/watchtower/output3.bin.proof.bin");
+//     // const PUBLIC_INPUTS: &[u8] =
+//     //     include_bytes!("../../../circuits/data/watchtower/output3.bin.public_inputs.bin");
+//     // const VK_HASH: &str =
+//     //     include_str!("../../../circuits/data/watchtower/output3.bin.vk_hash.bin");
+//     // Ok((PROOF, PUBLIC_INPUTS, VK_HASH))
+//
+//     let proof = hex::decode("ecbbedb806cdde002068f5ac2240b598f155c2d936076a807a9d0bcc2b190558238620ff048dc3c2d6a465f542e0800d680740158aaa99df2edf50253863bf186a9cad5a11595ed1a08e02c479b06adb354b477d327a143f44fee84edecee8b53d3e1e58243150662705bfa8dee4f08bf69f10b56810c6c22e6cae73f9becb63884614412931e8b4bd6e06570f0c51589dfa6ff77d977939175e5a35c5343e888ac747cf10444dc228e9be38c1a679c96c38ed35bd28add84d5dfc6622b86baaf4bc082529c67b8dd6aa3dde46e65c38b9a4c8bb373e237b3bf3aa2fe494bcc68eab4346216fec34ec5fc9fc5b69fd2197f8e822423bfe5c0176492b8913a58b8106d285").unwrap();
+//     let public_inputs = hex::decode("0000000000000000000000000000000000000000000000000000000000001194352476d9dc24739542fe4b01e2434b032fbab9d660d30d5ec8e4324ce2ad5a52").unwrap();
+//     let vk_hash = "007ed474ac46e7f0464a7b221e65524400344f1a8bab04e1e90f38d0aa5ee7a3";
+//
+//     Ok((&proof, &public_inputs, vk_hash))
+// }
+
+async fn get_watchtower_proof() -> Result<(&'static [u8], &'static [u8], &'static str), Box<dyn std::error::Error>> {
+    let proof = hex::decode("ecbbedb806cdde002068f5ac2240b598f155c2d936076a807a9d0bcc2b190558238620ff048dc3c2d6a465f542e0800d680740158aaa99df2edf50253863bf186a9cad5a11595ed1a08e02c479b06adb354b477d327a143f44fee84edecee8b53d3e1e58243150662705bfa8dee4f08bf69f10b56810c6c22e6cae73f9becb63884614412931e8b4bd6e06570f0c51589dfa6ff77d977939175e5a35c5343e888ac747cf10444dc228e9be38c1a679c96c38ed35bd28add84d5dfc6622b86baaf4bc082529c67b8dd6aa3dde46e65c38b9a4c8bb373e237b3bf3aa2fe494bcc68eab4346216fec34ec5fc9fc5b69fd2197f8e822423bfe5c0176492b8913a58b8106d285").unwrap();
+    let public_inputs = hex::decode("0000000000000000000000000000000000000000000000000000000000001194352476d9dc24739542fe4b01e2434b032fbab9d660d30d5ec8e4324ce2ad5a52").unwrap();
+    let vk_hash = "007ed474ac46e7f0464a7b221e65524400344f1a8bab04e1e90f38d0aa5ee7a3";
+
+    // 将Vec<u8>转换为Box<[u8]>然后泄漏，得到&'static [u8]
+    let proof_static = proof.into_boxed_slice();
+    let public_inputs_static = public_inputs.into_boxed_slice();
+    Ok((
+        Box::leak(proof_static),
+        Box::leak(public_inputs_static),
+        vk_hash,
+    ))
+}
+
 async fn push_fee_tx(
     fee_tx: &mut Transaction,
     input_value: Amount,
@@ -440,7 +502,7 @@ async fn push_sequencer_set_publish_tx(
             sig_hash_type,
         )
         .unwrap();
-        println!("update_connector_value sig is {:?}", sig);
+        //println!("update_connector_value sig is {:?}", sig);
         input_index += 1;
         // TODO: should sort the sigs by public key
         let mut sigs = vec![sig];
@@ -472,7 +534,7 @@ async fn push_sequencer_set_publish_tx(
     let mut sig_bytes = sig.serialize_der().to_vec();
     sig_bytes.push(sig_hash_type as u8);
 
-    println!("Publisher {}'s signature: {}", owner_p2wpkh, hex::encode(&sig_bytes));
+    //println!("Publisher {}'s signature: {}", owner_p2wpkh, hex::encode(&sig_bytes));
     sequencer_set_publish_tx.input[input_index].witness =
         Witness::from(vec![sig_bytes, owner_private_key.public_key(&secp).to_bytes()]);
 
@@ -492,7 +554,7 @@ async fn fetch_publishers(
     let mut pubkeys = Vec::new();
     for address in addresses {
         let pubkey = goat_client.seq_set_pub_get_publisher_public_keys(*address).await?;
-        println!("fetch_publishers address {:?}, pubkey {:?}", address, hex::encode(&pubkey));
+        //println!("fetch_publishers address {:?}, pubkey {:?}", address, hex::encode(&pubkey));
         let btc_pubkey = secp256k1::PublicKey::from_slice(pubkey.as_ref())?;
         pubkeys.push(btc_pubkey);
     }
@@ -587,11 +649,11 @@ async fn action_sign_publisher_update_on_goat(
         update.abi_encode_packed()
     };
 
-    println!("hash {:?}", hex::encode(&packed));
+    //println!("hash {:?}", hex::encode(&packed));
     let sig_hash = keccak256(packed);
-    println!("sig_hash {sig_hash:?}");
+    //println!("sig_hash {sig_hash:?}");
     let sign = signer.sign_hash(&sig_hash).await?;
-    println!("Signature: {sign}");
+    //println!("Signature: {sign}");
 
     let mut output = OutputData::default();
     output.publisher_sigs.push(hex::encode(sign.as_bytes()));
@@ -638,11 +700,12 @@ async fn action_push_sequencer_set_update(
     update_connector_vout: Option<u32>,
     sigs: Vec<String>,
     next_sequencer_set_hash: [u8; 32],
+    commitment_data: &[u8],
     output_file: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let btc_public_keys = fetch_publishers(goat_client, &publishers).await?;
     let next_btc_public_keys = fetch_publishers(goat_client, &next_publishers).await?;
-    println!("btc pubkeys: {next_btc_public_keys:?}");
+    //println!("btc pubkeys: {next_btc_public_keys:?}");
 
     let total = btc_public_keys.len();
     let threshold = (2 * total).div_ceil(3);
@@ -661,8 +724,8 @@ async fn action_push_sequencer_set_update(
         * estimate_tx_vbytes(&[(threshold as u32, total as u32)], &[("p2wsh", 3)], 73) as u64
         + relayer_fee;
 
-    println!("replenish fee: {replenish_fee:?}");
-    println!("sigs: {sigs:?}");
+    println!("action_push_sequencer_set_update replenish fee: {replenish_fee:?}");
+    //println!("sigs: {sigs:?}");
     // read public key and threshold from smart contract, which is consistency with btc_public_keys
     let fee_tx = btc_client
         .get_tx(&fee_txid.as_ref().unwrap().parse()?)
@@ -688,6 +751,7 @@ async fn action_push_sequencer_set_update(
     // Skip construction of the genesis tx
     let mut sequencer_set_publish_tx = create_sequencer_update_partial_tx(
         next_sequencer_set_hash,
+        commitment_data,
         &update_connector,
         &Some(OutPoint { txid: fee_tx.compute_txid(), vout: fee_tx_vout }),
         next_update_connector_address.clone(),
@@ -737,6 +801,7 @@ async fn action_sign_sequencer_set_update(
     update_connector_txid: Option<String>,
     update_connector_vout: Option<u32>,
     next_sequencer_set_hash: [u8; 32],
+    commitment_data: &[u8],
     output_file: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let network = get_network();
@@ -762,6 +827,8 @@ async fn action_sign_sequencer_set_update(
         * estimate_tx_vbytes(&[(threshold as u32, total as u32)], &[("p2wsh", 3)], 73) as u64
         + relayer_fee;
 
+    println!("action_sign_sequencer_set_update replenish_fee: {replenish_fee}");
+
     let fee_tx = btc_client
         .get_tx(&fee_txid.as_ref().unwrap().parse()?)
         .await?
@@ -784,6 +851,7 @@ async fn action_sign_sequencer_set_update(
 
     let mut sequencer_set_publish_tx = create_sequencer_update_partial_tx(
         next_sequencer_set_hash,
+        commitment_data,
         &update_connector,
         &Some(OutPoint { txid: fee_tx.compute_txid(), vout: fee_tx_vout }),
         next_update_connector_address.clone(),
@@ -826,12 +894,12 @@ async fn action_sign_sequencer_set_update(
             update_connector_value.unwrap(),
             sig_hash_type,
         )?;
-        let secp = secp256k1::Secp256k1::new();
-        println!(
-            "sig:\n {}: \"{}\"",
-            PublicKey::from_private_key(&secp, &owner_private_key),
-            hex::encode(&sig)
-        );
+        //let secp = secp256k1::Secp256k1::new();
+        // println!(
+        //     "sig:\n {}: \"{}\"",
+        //     PublicKey::from_private_key(&secp, &owner_private_key),
+        //     hex::encode(&sig)
+        // );
 
         let mut output = OutputData::default();
         output.sigs.push(hex::encode(&sig));
@@ -866,6 +934,8 @@ async fn action_push_fee_tx(
     let replenish_fee = Amount::from_sat(fee_rate)
         * estimate_tx_vbytes(&[(threshold as u32, total as u32)], &[("p2wsh", 3)], 73) as u64
         + relayer_fee;
+
+    println!("action_push_fee_tx replenish_fee: {replenish_fee}");
 
     let feepayer_private_key = PrivateKey::from_wif(fund_btc_key_wif.as_ref().unwrap())?;
 

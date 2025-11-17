@@ -11,7 +11,7 @@ use bitcoin::sighash::{EcdsaSighashType, SighashCache};
 
 pub fn create_sequencer_update_script(public_keys: &[PublicKey], threshold: usize) -> ScriptBuf {
     let total = public_keys.len();
-    println!("Multi sig: {threshold} of {total}");
+    //println!("Multi sig: {threshold} of {total}");
     assert!(
         threshold <= total,
         "Threshold must be less than or equal to total number of public keys"
@@ -46,7 +46,6 @@ pub fn finalize(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut wtns = vec![vec![]];
     for sig in &sigs {
-        println!("{sig:?}");
         wtns.push(sig.clone());
     }
     wtns.push(redeem_script.to_bytes()); // the redeem script itself

@@ -810,6 +810,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_proof() {
+        const PROOF: &[u8] =
+            include_bytes!("../../../circuits/data/watchtower/output3.bin.proof.bin");
+        const PUBLIC_INPUTS: &[u8] =
+            include_bytes!("../../../circuits/data/watchtower/output3.bin.public_inputs.bin");
+        const VK_HASH: &str =
+            include_str!("../../../circuits/data/watchtower/output3.bin.vk_hash.bin");
+
+        let proof = hex::encode(PROOF);
+        println!("proof {}", proof);
+
+        let inputs = hex::encode(PUBLIC_INPUTS);
+        println!("inputs {}", inputs);
+
+        println!("VK_HASH {}", VK_HASH);
+    }
+    #[tokio::test]
     async fn test_take2() {
         set_network(Network::Regtest);
         let esplora = get_esplora_client().await;

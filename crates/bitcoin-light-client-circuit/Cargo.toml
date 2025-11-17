@@ -6,10 +6,12 @@ edition.workspace = true
 [dependencies]
 bitcoin = { workspace = true, features = ["serde", "rand", "secp-recovery"] }
 #secp256k1 = { version = "0.30.0" }
+goat = { workspace = true }
+bitcoin-script.workspace = true
 
 bincode = "1.3.3"
 # workspace
-guest-executor = { workspace = true } 
+guest-executor = { workspace = true }
 header-chain = { path = "../header-chain" }
 commit-chain = { path = "../commit-chain" }
 

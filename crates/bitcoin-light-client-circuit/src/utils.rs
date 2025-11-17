@@ -10,6 +10,10 @@ use hex::FromHex;
 
 use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
 
+//use goat::scripts::{generate_data_commitment_outputs};
+
+use crate::commit::generate_data_commitment_outputs_except_opreturn;
+
 pub fn decode_eth_address(addr: &str) -> Result<[u8; 20], hex::FromHexError> {
     // Strip 0x if it exists
     let addr = addr.strip_prefix("0x").unwrap_or(addr);
@@ -61,7 +65,7 @@ pub fn estimate_tx_vbytes(
 }
 
 /// `create_fee_tx` create a fee payment tx for `sequencer_update_tx`.
-///  
+///
 pub fn create_fee_tx(
     evm_address: &[u8; 20],
     input: &OutPoint,
@@ -99,6 +103,7 @@ pub fn create_fee_tx(
 
 pub fn create_sequencer_update_partial_tx(
     commitment: [u8; 32],
+    commitment_data: &[u8],
     update_connector: &Option<OutPoint>,
     replenish_fee_connector: &Option<OutPoint>,
     next_update_connector: Address,
@@ -107,7 +112,7 @@ pub fn create_sequencer_update_partial_tx(
     let txout_next_connector =
         TxOut { value: relayer_fee, script_pubkey: next_update_connector.script_pubkey() };
 
-    println!("commitment: {commitment:?}");
+    //println!("commitment: {commitment:?}");
 
     let script = Builder::new().push_opcode(OP_RETURN).push_slice(commitment).into_script();
 
@@ -134,11 +139,26 @@ pub fn create_sequencer_update_partial_tx(
         input.push(txin_replenish_fee_connector);
     };
 
+    let mut outputs = vec![txout_next_connector, txout_op_return];
+    if commitment_data.len() > 1 {
+        let commitment_outputs = generate_data_commitment_outputs_except_opreturn(commitment_data);
+        // let commitment_amounts = commitment_outputs
+        //     .iter()
+        //     .map(|out| out.value)
+        //     .sum::<Amount>();
+        //
+        // replenish_fee_connector.unwrap().vout
+        // if total_input_amount < fee_amount + commitment_amounts {
+        //     return Err(Error::Transaction(InsufficientInputAmount));
+        // }
+        outputs.extend_from_slice(&commitment_outputs);
+    }
+
     let tx = Transaction {
         version: Version::TWO,
         lock_time: LockTime::ZERO,
         input,
-        output: vec![txout_next_connector, txout_op_return],
+        output: outputs,
     };
     Ok(tx)
 }
