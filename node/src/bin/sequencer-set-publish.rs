@@ -26,6 +26,7 @@ use bitvm2_noded::utils::wait_tx_confirmation;
 use bitvm2_noded::utils::{node_p2wsh_address, node_sign};
 use clap::{Parser, Subcommand};
 use client::SequencerSet;
+use client::L1ProofInfoSet;
 use client::btc_chain::BTCClient;
 use client::goat_chain::GOATClient;
 use client::goat_chain::GoatInitConfig;
@@ -36,10 +37,7 @@ use tracing_subscriber::EnvFilter;
 
 use bitcoin::secp256k1::{Message, Secp256k1};
 use bitcoin::sighash::{EcdsaSighashType, SighashCache};
-use bitcoin_light_client_circuit::{
-    /*create_dummy_publisher_keys,*/ create_fee_tx, create_sequencer_update_partial_tx,
-    decode_eth_address, estimate_tx_vbytes,
-};
+use bitcoin_light_client_circuit::{create_fee_tx, create_sequencer_update_partial_tx, decode_eth_address, estimate_tx_vbytes, extract_data_from_commitment_outputs_except_opreturn, parse_watchtower_commitment_v1};
 use commit_chain::{create_sequencer_update_script, finalize, sign_partial};
 
 use hex::FromHex;
@@ -51,6 +49,8 @@ use alloy::rpc::types::Block;
 use bitcoin::script::read_scriptbool;
 use futures::future::ok;
 use reqwest::Url;
+use clap::Args as ClapArgs;
+use tracing::error;
 
 pub fn decode_eth_address_object(addr: &str) -> Result<EvmAddress, String> {
     let addr = addr.trim();
@@ -75,7 +75,7 @@ struct Args {
     #[arg(long, default_value = "http://localhost:8123")]
     goat_rpc_url: String,
 
-    #[arg(long, default_value_t = 20, env = "FEE_RATE")]
+    #[arg(long, default_value_t = 2, env = "FEE_RATE")]
     fee_rate: u64, // sat/vbyte
 
     #[arg(long, env = "GOAT_EVM_PRVKEY")]
@@ -160,6 +160,28 @@ fn save_output(input: OutputData, output_file: &str, clean_sigs: bool) {
     std::fs::write(output_file, serde_json::to_string_pretty(&output).unwrap()).unwrap();
 }
 
+#[derive(ClapArgs, Clone)]
+struct L1ProofInfo {
+    #[arg(long)]
+    proof: Option<String>,
+    #[arg(long)]
+    public_inputs: Option<String>,
+    #[arg(long)]
+    vk_hash: Option<String>,
+    #[arg(long)]
+    block_number: Option<u64>,
+}
+// struct L1ProofInfo {
+//     #[arg(long, env = "PROOF")]
+//     proof: String,
+//     #[arg(long, env = "PUBLIC_INPUTS")]
+//     public_inputs: String,
+//     #[arg(long, env = "VK_HASH")]
+//     vk_hash:String,
+//     #[arg(long, env = "BLOCK_NUMBER")]
+//     block_number: u64,
+// }
+
 #[derive(Subcommand)]
 enum Commands {
     Fund {
@@ -175,6 +197,8 @@ enum Commands {
         next_publishers: Vec<EvmAddress>,
         #[arg(long)]
         clean_sigs: bool,
+        #[command(flatten)]
+        l1_proof_info: Option<L1ProofInfo>,
     },
     PushSeq {
         #[arg(long, env = "OWNER_BTC_KEY_WIF")]
@@ -183,6 +207,8 @@ enum Commands {
         goat_block_number: u64,
         #[arg(long, env = "NEXT_PUBLISHERS", value_delimiter = ',', value_parser = decode_eth_address_object)]
         next_publishers: Vec<EvmAddress>,
+        #[command(flatten)]
+        l1_proof_info: Option<L1ProofInfo>,
     },
     Payfee {
         #[arg(long, env = "FUND_BTC_KEY_WIF")]
@@ -205,6 +231,14 @@ enum Commands {
         next_publishers: Vec<EvmAddress>,
         #[arg(long)]
         goat_block_number: u64,
+    },
+    UpdateL1ProofInfo {
+        #[arg(long)]
+        l1_txid: String,
+        #[arg(long, env = "NEXT_PUBLISHERS", value_delimiter = ',', value_parser = decode_eth_address_object)]
+        next_publishers: Vec<EvmAddress>,
+        #[arg(long)]
+        block_number: u64,
     },
     PushPub {
         #[arg(long, env = "NEXT_PUBLISHERS", value_delimiter = ',', value_parser = decode_eth_address_object)]
@@ -277,7 +311,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await
         }
-        Commands::SignSeq { owner_btc_key_wif, goat_block_number, next_publishers, clean_sigs } => {
+        Commands::SignSeq { owner_btc_key_wif, goat_block_number, next_publishers, clean_sigs, l1_proof_info } => {
             // let (_, next_sequencer_set_hash, _) =
             //     fetch_cosmos_validator_info(goat_block_number).await?;
 
@@ -300,8 +334,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 save_output(output, output_file, true);
             }
 
-            let isHave = true;
+
             let mut comm: Vec<u8> = vec![];
+            if l1_proof_info.is_some() {
+                let info = l1_proof_info.unwrap();
+                let proof = hex::decode(info.proof.unwrap()).unwrap();
+                let public_inputs = hex::decode(info.public_inputs.unwrap()).unwrap();
+                let vk_hash = info.vk_hash.unwrap();
+                comm = bitcoin_light_client_circuit::build_watchtower_commitment_v1(
+                    &proof.try_into().unwrap(),
+                    &public_inputs.try_into().unwrap(),
+                    &vk_hash,
+                    0,
+                    info.block_number.unwrap(),
+                );
+            }
+            // just for test
+            let isHave = false;
             if isHave {
                 let (proof,  pub_inputs, vk_hash) = get_watchtower_proof().await.unwrap();
                 comm = bitcoin_light_client_circuit::build_watchtower_commitment_v1(
@@ -330,7 +379,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await
         }
-        Commands::PushSeq { owner_btc_key_wif, goat_block_number, next_publishers } => {
+        Commands::PushSeq { owner_btc_key_wif, goat_block_number, next_publishers, l1_proof_info } => {
             // let (_, next_sequencer_set_hash, _) =
             //     fetch_cosmos_validator_info(goat_block_number).await?;
 
@@ -344,8 +393,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let (update_connector_txid, update_connector_vout) =
                 (cached_output.update_connector_txid.clone(), cached_output.update_connector_vout);
 
-            let isHave = true;
             let mut comm: Vec<u8> = vec![];
+            if l1_proof_info.is_some() {
+                let info = l1_proof_info.unwrap();
+                let proof = hex::decode(info.proof.unwrap()).unwrap();
+                let public_inputs = hex::decode(info.public_inputs.unwrap()).unwrap();
+                let vk_hash = info.vk_hash.unwrap();
+                comm = bitcoin_light_client_circuit::build_watchtower_commitment_v1(
+                    &proof.try_into().unwrap(),
+                    &public_inputs.try_into().unwrap(),
+                    &vk_hash,
+                    0,
+                    info.block_number.unwrap(),
+                );
+            }
+            // just for test
+            let isHave = false;
             if isHave {
                 let (proof,  pub_inputs, vk_hash) = get_watchtower_proof().await.unwrap();
                 comm = bitcoin_light_client_circuit::build_watchtower_commitment_v1(
@@ -398,6 +461,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 next_sequencer_set_hash,
                 p2wsh_sig_hash,
                 goat_block_number,
+            )
+            .await
+        }
+        Commands::UpdateL1ProofInfo { l1_txid, next_publishers, block_number } => {
+            let txid = Txid::from_str(&l1_txid).unwrap();
+            let tx = btc_client
+                .get_tx(&txid)
+                .await?
+                .expect("l1 tx doesn't exist");
+
+            let commitment = &extract_data_from_commitment_outputs_except_opreturn(&tx.output)[..];
+            println!("commitment: {commitment:?}");
+
+            // verify proof
+            let (_, _, _, _, watchtower_block_height) = parse_watchtower_commitment_v1(commitment)?;
+            if watchtower_block_height != block_number{
+                //return Err("Block heights do not match".to_string().into());
+                return Err(format!("Watchtower block height mismatch: expected {}, got {}", block_number, watchtower_block_height).into());
+            }
+
+            action_update_l1_proof_info_on_l2(
+                &goat_client,
+                args.goat_evm_prvkey,
+                l1_txid,
+                args.publishers,
+                next_publishers,
+                block_number,
             )
             .await
         }
@@ -616,6 +706,43 @@ async fn action_update_sequencer_set_on_goat(
     };
 
     let txid = goat_client.seq_set_pub_update_sequencer_set(&sequencer_set, &sign).await?;
+    println!("Txid: {txid}");
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn action_update_l1_proof_info_on_l2(
+    goat_client: &GOATClient,
+    goat_evm_prvkey: Option<String>,
+    l1_tx_hash: String,
+    publishers: Vec<EvmAddress>,
+    next_publishers: Vec<EvmAddress>,
+    goat_block_number: u64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // FIXME: we must use abi_encode instead of abi_encode_packed here.
+    let packed = publishers.iter().map(EvmAddress::abi_encode).collect::<Vec<Vec<u8>>>().concat();
+    let publishers_hash = keccak256(&packed);
+
+    let packed =
+        next_publishers.iter().map(EvmAddress::abi_encode).collect::<Vec<Vec<u8>>>().concat();
+    let next_publishers_hash = keccak256(&packed);
+
+    let hash = hex_parse(&l1_tx_hash)?;
+
+    let proof_set = L1ProofInfoSet {
+        l1_tx_hash: hash,
+        publishers_hash: *publishers_hash,
+        next_publishers_hash: *next_publishers_hash,
+        block_number: goat_block_number,
+    };
+
+    // sign l1_tx_hash
+    let sign = {
+        let signer = PrivateKeySigner::from_str(goat_evm_prvkey.as_ref().unwrap())?;
+        signer.sign_hash(&B256::from_slice(&hash)).await?
+    };
+
+    let txid = goat_client.update_l1_proof_info_on_l2(&proof_set, &sign).await?;
     println!("Txid: {txid}");
     Ok(())
 }

@@ -10,6 +10,7 @@ use uuid::Uuid;
 pub mod utils;
 use crate::btc_chain::{BTCClient, MerkleProofExtend};
 pub use chain_adaptor::SequencerSet;
+pub use chain_adaptor::L1ProofInfoSet;
 pub use chain_adaptor::{
     BitcoinTx, BitcoinTxProof, GoatNetwork, GraphData, PeginData, PeginStatus, WithdrawData,
     WithdrawStatus, get_chain_adaptor,
@@ -638,6 +639,36 @@ impl GOATClient {
         // TODO: add more pre-checks
         self.chain_service.seq_set_pub_update_sequencer_set(sequencer_set, sign).await
     }
+
+    pub async fn update_l1_proof_info_on_l2(
+        &self,
+        proof_set: &L1ProofInfoSet,
+        sign: &Signature,
+    ) -> anyhow::Result<String> {
+        let latest_height = self.chain_service.get_latest_proved_block_height().await?;
+        if latest_height > proof_set.block_number {
+            bail!(
+                "InvalidGOATHeight, input latest block number: {latest_height} is greater than sequencer_set: {}.",
+                proof_set.block_number
+            );
+        }
+
+        let addr = recover_signer(sign, B256::from_slice(proof_set.l1_tx_hash.as_slice()))?;
+        let addr_exp = self.chain_service.get_default_signer_address();
+        println!("addr_exp: {addr_exp}, act: {addr}");
+        if addr != addr_exp {
+            bail!("P2WSHSignatureMismatch, exp:{addr_exp}, act:{addr}");
+        }
+
+        let owners = self.chain_service.seq_set_pub_multi_sig_verifier_get_owners().await?;
+        if !owners.contains(&addr) {
+            bail!("Publisher {addr} is not a multi-sig-verifier owner");
+        }
+
+        // TODO: add more pre-checks
+        self.chain_service.update_l1_proof_info(proof_set, sign).await
+    }
+
     pub async fn seq_set_pub_update_publisher_set(
         &self,
         new_publishers: Vec<Address>,

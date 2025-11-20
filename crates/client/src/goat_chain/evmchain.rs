@@ -1,4 +1,4 @@
-use crate::Utxo;
+use crate::{L1ProofInfoSet, Utxo};
 use crate::goat_chain::DisproveTxType;
 use crate::goat_chain::chain_adaptor::{
     BitcoinTx, BitcoinTxProof, ChainAdaptor, GraphData, PeginData, SequencerSet, WithdrawData,
@@ -301,6 +301,10 @@ impl EvmChain {
         self.adaptor.seq_set_pub_get_last_block_height().await
     }
 
+    pub async fn get_latest_proved_block_height(&self) -> anyhow::Result<u64> {
+        self.adaptor.get_latest_proved_block_height().await
+    }
+
     pub async fn seq_set_pub_calc_commitment(
         &self,
         height: U256,
@@ -329,6 +333,14 @@ impl EvmChain {
         signature: &Signature,
     ) -> anyhow::Result<String> {
         self.adaptor.seq_set_pub_update_sequencer_set(sequencer_set, signature).await
+    }
+
+    pub async fn update_l1_proof_info(
+        &self,
+        proof_set: &L1ProofInfoSet,
+        signature: &Signature,
+    ) -> anyhow::Result<String> {
+        self.adaptor.update_l1_proof_info(proof_set, signature).await
     }
 
     pub async fn seq_set_pub_update_publisher_set(

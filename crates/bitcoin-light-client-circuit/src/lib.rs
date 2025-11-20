@@ -26,6 +26,8 @@ use zkm_verifier::Groth16Verifier;
 use bitcoin::{hashes::Hash, secp256k1::PublicKey, ScriptBuf, TxOut, Txid};
 pub use guest_executor::io::EthClientExecutorInput;
 
+pub use commit::{extract_data_from_commitment_outputs_except_opreturn};
+
 pub const GRAPH_ID_SIZE: usize = 16;
 pub const PROOF_SIZE: usize = 260;
 pub const PUBLIC_INPUTS_SIZE: usize = 64;

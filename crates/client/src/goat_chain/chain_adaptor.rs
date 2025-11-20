@@ -137,6 +137,7 @@ pub trait ChainAdaptor: Send + Sync {
     async fn btc_spv_latest_confirmed_height(&self) -> anyhow::Result<u64>;
 
     async fn seq_set_pub_get_last_block_height(&self) -> anyhow::Result<u64>;
+    async fn get_latest_proved_block_height(&self) -> anyhow::Result<u64>;
     async fn seq_set_pub_calc_commitment(&self, height: U256) -> anyhow::Result<FixedBytes<32>>;
     async fn seq_set_pub_multi_sig_verifier_get_owners(&self) -> anyhow::Result<Vec<Address>>;
     async fn seq_set_pub_multi_sig_verifier_get_nonce(&self) -> anyhow::Result<U256>;
@@ -147,6 +148,11 @@ pub trait ChainAdaptor: Send + Sync {
     async fn seq_set_pub_update_sequencer_set(
         &self,
         sequencer_set: &SequencerSet,
+        signature: &Signature,
+    ) -> anyhow::Result<String>;
+    async fn update_l1_proof_info(
+        &self,
+        proof_set: &L1ProofInfoSet,
         signature: &Signature,
     ) -> anyhow::Result<String>;
     async fn seq_set_pub_update_publisher_set(
@@ -352,6 +358,14 @@ pub struct SequencerSet {
     pub next_publishers_hash: [u8; 32],
     pub p2wsh_sig_hash: [u8; 32],
     pub goat_block_number: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct L1ProofInfoSet {
+    pub l1_tx_hash: [u8; 32],
+    pub block_number: u64,
+    pub publishers_hash: [u8; 32],
+    pub next_publishers_hash: [u8; 32],
 }
 
 pub fn get_chain_adaptor(

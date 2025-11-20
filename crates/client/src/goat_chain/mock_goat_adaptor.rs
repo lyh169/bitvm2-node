@@ -331,6 +331,10 @@ impl ChainAdaptor for MockAdaptor {
         Ok(0)
     }
 
+    async fn get_latest_proved_block_height(&self) -> anyhow::Result<u64> {
+        Ok(0)
+    }
+
     async fn seq_set_pub_calc_commitment(&self, _height: U256) -> anyhow::Result<FixedBytes<32>> {
         Ok(FixedBytes::<32>::new([0u8; 32]))
     }
@@ -353,6 +357,14 @@ impl ChainAdaptor for MockAdaptor {
     async fn seq_set_pub_update_sequencer_set(
         &self,
         _sequencer_set: &SequencerSet,
+        _signature: &Signature,
+    ) -> anyhow::Result<String> {
+        Ok("".to_string())
+    }
+
+    async fn update_l1_proof_info(
+        &self,
+        _proof_set: &L1ProofInfoSet,
         _signature: &Signature,
     ) -> anyhow::Result<String> {
         Ok("".to_string())

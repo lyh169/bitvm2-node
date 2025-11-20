@@ -28,6 +28,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use tokio::time;
 use uuid::Uuid;
+use crate::L1ProofInfoSet;
 
 sol!(
     #[derive(Debug)]
@@ -196,6 +197,12 @@ sol!(
             bytes32 p2wshSigHash;
             uint256 goatBlockNumber;
         }
+        struct L1ProofInfo {
+            bytes32 l1TxHash;
+            uint256 goatBlockNumber;
+            bytes32 publishersHash;
+            bytes32 nextPublishersHash;
+        }
         address public multiSigVerifier;
         mapping(uint256 height => mapping(address publisher => bytes32 cmt)) public heightSequencerCmt;
 
@@ -203,7 +210,13 @@ sol!(
         mapping(bytes32 cmt => SequencerSet ss) public cmtSequencerSet;
         uint256 public latestConfirmedHeight;
 
+        uint256 public latestProvedHeight;
+        mapping(uint256 height => mapping(address publisher => bytes32 cmt)) public heightL1ProofInfoCmt;
+        mapping(bytes32 cmt => uint256 cnt) public l1ProofInfoCmtCnt;
+        mapping(uint256 height => L1ProofInfo lpi) public heigthL1ProofInfo;
+
         function updateSequencerSet(SequencerSet calldata ss,  bytes calldata signature) external;
+        function updateL1ProofInfo(L1ProofInfo calldata info, bytes calldata signature) external;
         function updatePublisherSet(address[] calldata newPublishers, bytes[] calldata newPublisherBTCPubkeys, bytes[] calldata changeOwnerSigs, uint256 height) external;
         function calcMajoritySequencerSetCmtAtHeightOrLatest(uint256 height) public view returns (bytes32);
     }
@@ -608,6 +621,17 @@ impl From<&SequencerSet> for ISequencerSetPublisher::SequencerSet {
             nextPublishersHash: FixedBytes::from_slice(&value.next_publishers_hash),
             p2wshSigHash: FixedBytes::from_slice(&value.p2wsh_sig_hash),
             goatBlockNumber: U256::from(value.goat_block_number),
+        }
+    }
+}
+
+impl From<&L1ProofInfoSet> for ISequencerSetPublisher::L1ProofInfo {
+    fn from(value: &L1ProofInfoSet) -> Self {
+        Self {
+            l1TxHash: FixedBytes::from_slice(&value.l1_tx_hash),
+            goatBlockNumber: U256::from(value.block_number),
+            publishersHash: FixedBytes::from_slice(&value.publishers_hash),
+            nextPublishersHash: FixedBytes::from_slice(&value.next_publishers_hash),
         }
     }
 }
@@ -1046,6 +1070,11 @@ impl ChainAdaptor for GoatAdaptor {
         Ok(sequencer_set_publisher.latestConfirmedHeight().call().await?.try_into()?)
     }
 
+    async fn get_latest_proved_block_height(&self) -> anyhow::Result<u64> {
+        let sequencer_set_publisher = self.get_sequencer_set_publisher()?;
+        Ok(sequencer_set_publisher.latestProvedHeight().call().await?.try_into()?)
+    }
+
     async fn seq_set_pub_calc_commitment(&self, height: U256) -> anyhow::Result<FixedBytes<32>> {
         let sequencer_set_publisher = self.get_sequencer_set_publisher()?;
         Ok(sequencer_set_publisher
@@ -1080,6 +1109,21 @@ impl ChainAdaptor for GoatAdaptor {
         let sequencer_set_publisher = self.get_sequencer_set_publisher()?;
         let tx_request = sequencer_set_publisher
             .updateSequencerSet(sequencer_set.into(), Bytes::copy_from_slice(&signature.as_bytes()))
+            .from(self.get_default_signer_address())
+            .chain_id(self.chain_id)
+            .into_transaction_request();
+        let tx_hash = self.handle_transaction_request(tx_request).await?;
+        Ok(tx_hash.to_string())
+    }
+
+    async fn update_l1_proof_info(
+        &self,
+        proof_set: &L1ProofInfoSet,
+        signature: &Signature,
+    ) -> anyhow::Result<String> {
+        let sequencer_set_publisher = self.get_sequencer_set_publisher()?;
+        let tx_request = sequencer_set_publisher
+            .updateL1ProofInfo(proof_set.into(), Bytes::copy_from_slice(&signature.as_bytes()))
             .from(self.get_default_signer_address())
             .chain_id(self.chain_id)
             .into_transaction_request();
