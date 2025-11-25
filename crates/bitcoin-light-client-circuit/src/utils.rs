@@ -10,7 +10,7 @@ use hex::FromHex;
 
 use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
 
-use crate::commit::generate_data_commitment_outputs_except_opreturn;
+use crate::commit::{generate_data_commitment_outputs_except_opreturn};
 
 pub fn decode_eth_address(addr: &str) -> Result<[u8; 20], hex::FromHexError> {
     // Strip 0x if it exists

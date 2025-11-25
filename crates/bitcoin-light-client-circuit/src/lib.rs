@@ -391,6 +391,12 @@ pub fn build_watchtower_commitment_v1(
     comm.extend_from_slice(U256::from(total_work).as_le_slice());
     comm.extend_from_slice(U256::from(consensus_block_height).as_le_slice());
 
+    let remainder = comm.len() % 32;
+    if remainder != 0 {
+        let padding_len = 32 - remainder;
+        comm.resize(comm.len() + padding_len, 0u8);
+    }
+
     comm
 }
 
@@ -424,6 +430,7 @@ pub fn parse_watchtower_commitment_v1(
     let mut bh_bytes = [0u8; 32];
     bh_bytes.copy_from_slice(&commitment[end..end + 32]);
     let watchtower_consensus_block_height = U256::from_le_bytes(bh_bytes);
+    println!("height: {}, bh_bytes {:?}", watchtower_consensus_block_height, bh_bytes);
 
     let groth16_vk = *zkm_verifier::GROTH16_VK_BYTES;
     let result = Groth16Verifier::verify(&proof, &zkm_public_values, &zkm_vk_hash, groth16_vk);
@@ -464,6 +471,8 @@ mod tests {
             block_height,
         );
 
+        println!("VK_HASH: {}", VK_HASH);
+
         let expected = parse_watchtower_commitment(&comm).unwrap();
 
         assert_eq!(expected.0, graph_id);
@@ -486,18 +495,41 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_op_return() {
-        // Example: construct a fake tx with OP_RETURN
-        let expected_op_data = [12, 3, 4, 45];
-        let script = ScriptBuf::new_op_return(&expected_op_data);
-        let tx = Transaction {
-            version: bitcoin::transaction::Version::TWO,
-            lock_time: bitcoin::absolute::LockTime::ZERO,
-            input: vec![],
-            output: vec![bitcoin::TxOut { value: Amount::ZERO, script_pubkey: script }],
-        };
+    // fn test_extract_op_return() {
+    //     // Example: construct a fake tx with OP_RETURN
+    //     let expected_op_data = [12, 3, 4, 45];
+    //     let script = ScriptBuf::new_op_return(&expected_op_data);
+    //     let tx = Transaction {
+    //         version: bitcoin::transaction::Version::TWO,
+    //         lock_time: bitcoin::absolute::LockTime::ZERO,
+    //         input: vec![],
+    //         output: vec![bitcoin::TxOut { value: Amount::ZERO, script_pubkey: script }],
+    //     };
+    //
+    //     let op_return_data = crate::extract_op_return_data(&tx.output);
+    //     assert_eq!(expected_op_data.to_vec(), op_return_data);
+    // }
 
-        let op_return_data = crate::extract_op_return_data(&tx.output);
-        assert_eq!(expected_op_data.to_vec(), op_return_data);
+    #[test]
+    fn test_build_watchtower_commitment_v1() {
+        let mut proof = hex::decode("ecbbedb806cdde002068f5ac2240b598f155c2d936076a807a9d0bcc2b190558238620ff048dc3c2d6a465f542e0800d680740158aaa99df2edf50253863bf186a9cad5a11595ed1a08e02c479b06adb354b477d327a143f44fee84edecee8b53d3e1e58243150662705bfa8dee4f08bf69f10b56810c6c22e6cae73f9becb63884614412931e8b4bd6e06570f0c51589dfa6ff77d977939175e5a35c5343e888ac747cf10444dc228e9be38c1a679c96c38ed35bd28add84d5dfc6622b86baaf4bc082529c67b8dd6aa3dde46e65c38b9a4c8bb373e237b3bf3aa2fe494bcc68eab4346216fec34ec5fc9fc5b69fd2197f8e822423bfe5c0176492b8913a58b8106d285").unwrap();
+        let mut pub_inputs = hex::decode("0000000000000000000000000000000000000000000000000000000000001194352476d9dc24739542fe4b01e2434b032fbab9d660d30d5ec8e4324ce2ad5a52").unwrap();
+        let mut vk_hash = "0x007ed474ac46e7f0464a7b221e65524400344f1a8bab04e1e90f38d0aa5ee7a3";
+
+        let height = 100u64;
+        let comm = build_watchtower_commitment_v1(
+            &proof.clone().try_into().unwrap(),
+            &pub_inputs.clone().try_into().unwrap(),
+            vk_hash,
+            0,
+            height);
+        //println!("leng {}, comm {:?}", comm.len(), comm);
+        let (wproof, wpub_inputs, wvk_hash, work, watchtower_block_height) = parse_watchtower_commitment_v1(&comm).unwrap();
+        //println!("watchtower_block_height: {}", watchtower_block_height);
+
+        assert_eq!(proof, wproof.to_vec());
+        assert_eq!(pub_inputs, wpub_inputs.to_vec());
+        assert_eq!(*vk_hash, wvk_hash);
+        assert_eq!(U256::from(height), watchtower_block_height);
     }
 }

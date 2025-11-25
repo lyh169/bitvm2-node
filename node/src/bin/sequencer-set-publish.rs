@@ -350,7 +350,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             // just for test
-            let isHave = false;
+            let isHave = true;
             if isHave {
                 let (proof,  pub_inputs, vk_hash) = get_watchtower_proof().await.unwrap();
                 comm = bitcoin_light_client_circuit::build_watchtower_commitment_v1(
@@ -360,6 +360,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     0,
                     goat_block_number,
                 );
+                println!("watchtower_commitment: len {}, {:?}", comm.len(), comm)
             }
 
             action_sign_sequencer_set_update(
@@ -408,7 +409,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             // just for test
-            let isHave = false;
+            let isHave = true;
             if isHave {
                 let (proof,  pub_inputs, vk_hash) = get_watchtower_proof().await.unwrap();
                 comm = bitcoin_light_client_circuit::build_watchtower_commitment_v1(
@@ -418,6 +419,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     0,
                     goat_block_number,
                 );
+                println!("watchtower_commitment: len {}, {:?}", comm.len(), comm)
             }
 
             action_push_sequencer_set_update(
@@ -472,7 +474,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .expect("l1 tx doesn't exist");
 
             let commitment = &extract_data_from_commitment_outputs_except_opreturn(&tx.output)[..];
-            println!("commitment: {commitment:?}");
+            println!("commitment: len {}, {commitment:?}", commitment.len());
 
             // verify proof
             let (_, _, _, _, watchtower_block_height) = parse_watchtower_commitment_v1(commitment)?;
@@ -534,7 +536,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn get_watchtower_proof() -> Result<(&'static [u8], &'static [u8], &'static str), Box<dyn std::error::Error>> {
     let proof = hex::decode("ecbbedb806cdde002068f5ac2240b598f155c2d936076a807a9d0bcc2b190558238620ff048dc3c2d6a465f542e0800d680740158aaa99df2edf50253863bf186a9cad5a11595ed1a08e02c479b06adb354b477d327a143f44fee84edecee8b53d3e1e58243150662705bfa8dee4f08bf69f10b56810c6c22e6cae73f9becb63884614412931e8b4bd6e06570f0c51589dfa6ff77d977939175e5a35c5343e888ac747cf10444dc228e9be38c1a679c96c38ed35bd28add84d5dfc6622b86baaf4bc082529c67b8dd6aa3dde46e65c38b9a4c8bb373e237b3bf3aa2fe494bcc68eab4346216fec34ec5fc9fc5b69fd2197f8e822423bfe5c0176492b8913a58b8106d285").unwrap();
     let public_inputs = hex::decode("0000000000000000000000000000000000000000000000000000000000001194352476d9dc24739542fe4b01e2434b032fbab9d660d30d5ec8e4324ce2ad5a52").unwrap();
-    let vk_hash = "007ed474ac46e7f0464a7b221e65524400344f1a8bab04e1e90f38d0aa5ee7a3";
+    let vk_hash = "0x007ed474ac46e7f0464a7b221e65524400344f1a8bab04e1e90f38d0aa5ee7a3";
 
     // 将Vec<u8>转换为Box<[u8]>然后泄漏，得到&'static [u8]
     let proof_static = proof.into_boxed_slice();
