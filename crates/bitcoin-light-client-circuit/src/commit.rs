@@ -3,9 +3,8 @@ use bitcoin_script::script;
 use goat::transactions::base::DUST_AMOUNT;
 
 pub fn generate_data_commitment_outputs_except_opreturn(data: &[u8]) -> Vec<TxOut> {
-    let data_len = data.len();
         let mut txouts = vec![];
-        let mut data = data.to_vec();
+        let data = data.to_vec();
         for chunk in data.chunks(32) {
             txouts.push(TxOut {
                 value: Amount::from_sat(DUST_AMOUNT),

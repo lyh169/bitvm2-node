@@ -44,13 +44,8 @@ use hex::FromHex;
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::str::FromStr;
-use alloy::network::BlockResponse;
-use alloy::rpc::types::Block;
-use bitcoin::script::read_scriptbool;
-use futures::future::ok;
 use reqwest::Url;
 use clap::Args as ClapArgs;
-use tracing::error;
 
 pub fn decode_eth_address_object(addr: &str) -> Result<EvmAddress, String> {
     let addr = addr.trim();
@@ -315,12 +310,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // let (_, next_sequencer_set_hash, _) =
             //     fetch_cosmos_validator_info(goat_block_number).await?;
 
-            let goatBlock = goat_client.get_Block(goat_block_number+1).await?;
-            let next_sequencer_set_hash = Some(goatBlock.unwrap().hash().0);
+            let goat_block = goat_client.get_block(goat_block_number+1).await?;
+            let next_sequencer_set_hash = Some(goat_block.unwrap().hash().0);
             println!("goat_block_number {}, sequence_set_hash {:?}", goat_block_number, hex::encode(next_sequencer_set_hash.unwrap()));
 
-            let secp = secp256k1::Secp256k1::new();
-            let owner_private_key = PrivateKey::from_wif(owner_btc_key_wif.as_ref().unwrap())?;
+            // let secp = secp256k1::Secp256k1::new();
+            // let owner_private_key = PrivateKey::from_wif(owner_btc_key_wif.as_ref().unwrap())?;
             //let pk = owner_private_key.public_key(&secp);
             //println!("owner_btc_key_wif {:?}, pk {}", owner_btc_key_wif, pk.to_string());
 
@@ -350,8 +345,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             // just for test
-            let isHave = true;
-            if isHave {
+            let is_have = true;
+            if is_have {
                 let (proof,  pub_inputs, vk_hash) = get_watchtower_proof().await.unwrap();
                 comm = bitcoin_light_client_circuit::build_watchtower_commitment_v1(
                     &proof.try_into().unwrap(),
@@ -384,9 +379,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // let (_, next_sequencer_set_hash, _) =
             //     fetch_cosmos_validator_info(goat_block_number).await?;
 
-            let goatBlock = goat_client.get_Block(goat_block_number+1).await?;
+            let goat_block = goat_client.get_block(goat_block_number+1).await?;
             //println!("goatBlock {:?}", goatBlock);
-            let next_sequencer_set_hash = Some(goatBlock.unwrap().hash().0);
+            let next_sequencer_set_hash = Some(goat_block.unwrap().hash().0);
             println!("goat_block_number {}, sequence_set_hash {:?}", goat_block_number, hex::encode(next_sequencer_set_hash.unwrap()));
 
             let (fee_txid, fee_tx_vout) =
@@ -409,8 +404,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             // just for test
-            let isHave = true;
-            if isHave {
+            let is_have = true;
+            if is_have {
                 let (proof,  pub_inputs, vk_hash) = get_watchtower_proof().await.unwrap();
                 comm = bitcoin_light_client_circuit::build_watchtower_commitment_v1(
                     &proof.try_into().unwrap(),
@@ -445,12 +440,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // let (sequence_set_hash, next_sequencer_set_hash, _) =
             //     fetch_cosmos_validator_info(goat_block_number).await?;
 
-            let goatBlock = goat_client.get_Block(goat_block_number).await?;
-            let sequence_set_hash =  Some(goatBlock.unwrap().hash().0);
+            let goat_block = goat_client.get_block(goat_block_number).await?;
+            let sequence_set_hash =  Some(goat_block.unwrap().hash().0);
             println!("goat_block_number {}, sequence_set_hash {:?}", goat_block_number, hex::encode(sequence_set_hash.unwrap()));
 
-            let nextGoatBlock = goat_client.get_Block(goat_block_number+1).await?;
-            let next_sequencer_set_hash = Some(nextGoatBlock.unwrap().hash().0);
+            let next_goat_block = goat_client.get_block(goat_block_number+1).await?;
+            let next_sequencer_set_hash = Some(next_goat_block.unwrap().hash().0);
             println!("goat_block_number {}, sequence_set_hash {:?}", goat_block_number+1, hex::encode(next_sequencer_set_hash.unwrap()));
 
             action_update_sequencer_set_on_goat(

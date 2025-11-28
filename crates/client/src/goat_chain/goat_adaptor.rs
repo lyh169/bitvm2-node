@@ -662,7 +662,7 @@ impl ChainAdaptor for GoatAdaptor {
         Ok(self.provider.get_transaction_receipt(TxHash::from_str(tx_hash)?).await?)
     }
 
-    async fn get_Block(&self, block_number: u64) -> anyhow::Result<Option<Block>> {
+    async fn get_block(&self, block_number: u64) -> anyhow::Result<Option<Block>> {
         Ok(self.provider.get_block_by_number(BlockNumberOrTag::from(block_number)).await?)
     }
 

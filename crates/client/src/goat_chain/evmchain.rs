@@ -244,8 +244,8 @@ impl EvmChain {
             .await
     }
 
-    pub async fn get_Block(&self, block_number: u64) -> anyhow::Result<Option<Block>> {
-        self.adaptor.get_Block(block_number).await
+    pub async fn get_block(&self, block_number: u64) -> anyhow::Result<Option<Block>> {
+        self.adaptor.get_block(block_number).await
     }
 
     pub async fn get_tx_receipt(

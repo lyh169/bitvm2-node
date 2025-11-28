@@ -66,8 +66,8 @@ impl GOATClient {
         self.chain_service.gateway_get_initialized_ids().await
     }
 
-    pub async fn get_Block(&self, block_number: u64) -> anyhow::Result<Option<Block>> {
-        self.chain_service.get_Block(block_number).await
+    pub async fn get_block(&self, block_number: u64) -> anyhow::Result<Option<Block>> {
+        self.chain_service.get_block(block_number).await
     }
 
     pub async fn get_tx_receipt(

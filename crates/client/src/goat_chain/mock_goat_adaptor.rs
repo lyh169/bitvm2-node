@@ -7,7 +7,6 @@ use anyhow::bail;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use alloy::eips::BlockNumberOrTag;
 use tracing::info;
 use uuid::Uuid;
 
@@ -77,7 +76,7 @@ impl ChainAdaptor for MockAdaptor {
         }
     }
 
-    async fn get_Block(&self, block_number: u64) -> anyhow::Result<Option<Block>> {
+    async fn get_block(&self, _block_number: u64) -> anyhow::Result<Option<Block>> {
         info!("call get_Block");
         Ok(Some(Block::default()))
     }
